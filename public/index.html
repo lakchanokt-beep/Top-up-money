@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Top-up Money Tool</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace">
+        <header class="topbar">
+          <div class="brand-block">
+            <div class="brand-mark">TM</div>
+            <div>
+              <h1>Top-up Money</h1>
+              <p class="sub">One-step top-up console for local SIT/UAT services</p>
+            </div>
+          </div>
+          <div class="status-pill" id="connectionStatus">Ready</div>
+        </header>
+
+        <section class="summary-row" aria-label="Environment summary">
+          <div class="stat-card">
+            <span class="label">Selected Env</span>
+            <strong class="value" id="summaryEnv">-</strong>
+            <i></i>
+          </div>
+          <div class="stat-card">
+            <span class="label">Service Port</span>
+            <strong class="value small" id="summaryPort">-</strong>
+            <i></i>
+          </div>
+          <div class="stat-card">
+            <span class="label">AWS Profile</span>
+            <strong class="value small" id="summaryProfile">-</strong>
+            <i></i>
+          </div>
+        </section>
+
+        <section class="control-grid">
+          <div class="panel env-panel">
+            <div class="panel-head">
+              <div>
+                <h2><span></span>Environment</h2>
+                <p>Select the batch environment that is currently port-forwarded.</p>
+              </div>
+            </div>
+            <label class="field-label" for="envSelect">Environment</label>
+            <select id="envSelect"></select>
+            <dl class="env-detail">
+              <div><dt>Profile</dt><dd id="awsProfile">-</dd></div>
+              <div><dt>Region</dt><dd id="awsRegion">-</dd></div>
+              <div><dt>Cluster</dt><dd id="awsCluster">-</dd></div>
+            </dl>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2><span></span>Target Service</h2>
+                <p>Both options connect to DCB adapter on local port 8051.</p>
+              </div>
+            </div>
+            <label class="field-label" for="serviceSelect">Service</label>
+            <select id="serviceSelect"></select>
+            <div class="service-url" id="serviceUrl">-</div>
+            <button class="secondary-button" id="healthButton" type="button" disabled>Check Port</button>
+          </div>
+        </section>
+
+        <section class="request-layout">
+          <div class="transfer-column">
+            <form class="panel request-panel" id="requestForm" hidden>
+              <div class="panel-head">
+                <div>
+                  <h2><span></span>One-step Transfer</h2>
+                  <p>Inbound top-up uses toAccountId. Outbound withdrawal uses fromAccountId and pocketNumber.</p>
+                </div>
+              </div>
+
+              <div class="topup-grid">
+                <div>
+                  <label class="field-label" for="entityNumberFrom">Account Number</label>
+                  <input id="entityNumberFrom" placeholder="Input Account">
+                </div>
+                <div>
+                  <label class="field-label" for="amountInput">Amount</label>
+                  <input id="amountInput" type="number" min="0.01" step="0.01" placeholder="Input amount">
+                </div>
+              </div>
+
+              <div class="topup-grid">
+                <div>
+                  <label class="field-label" for="transactionCodeInput">Transaction Code</label>
+                  <input id="transactionCodeInput" value="MSTIANN" placeholder="MSTIANN" disabled>
+                </div>
+                <div>
+                  <label class="field-label" for="internalAccountInput">Internal Account</label>
+                  <input id="internalAccountInput" value="FUND_TRANSFER" placeholder="FUND_TRANSFER" disabled>
+                </div>
+              </div>
+
+              <div class="actions">
+                <button id="submitButton" type="submit">Top-up Now</button>
+                <button class="ghost-button" id="resetButton" type="button">Reset Form</button>
+              </div>
+            </form>
+
+            <section class="panel bulk-panel" id="bulkPanel" hidden>
+              <div class="panel-head">
+                <div>
+                  <h2>
+                    <span></span>
+                    Bulk and Single Transfer Out (Target Balance)
+                    <button
+                      class="info-button"
+                      type="button"
+                      aria-label="Bulk status explanation"
+                      data-tooltip="Ready: account พร้อมยิง Transfer Out All เพราะ lookup สำเร็จ เจอ tmAccountId, pocketNumber, balance และ amount ที่ต้องเอาออกมากกว่า 0&#10;Skip: lookup สำเร็จแต่ไม่ต้องเอาเงินออก เพราะ balance น้อยกว่าหรือเท่ากับ Target Balance&#10;Error: account ยังไม่พร้อม เช่น DDP ไม่สำเร็จ หรือหา tmAccountId, pocketNumber, balance ไม่เจอ&#10;Ignored: account ที่ paste มาเกิน limit 20 ระบบใช้เฉพาะ 20 รายการแรก"
+                    >i</button>
+                  </h2>
+                  <p>Paste up to 20 accounts. Extra accounts are ignored after the first 20.</p>
+                </div>
+              </div>
+
+              <label class="field-label" for="bulkAccountsInput">Accounts</label>
+              <textarea id="bulkAccountsInput" class="bulk-accounts-input" spellcheck="false" placeholder="1909824734&#10;1909824735&#10;1909824736"></textarea>
+
+              <div class="topup-grid">
+                <div>
+                  <label class="field-label" for="targetBalanceInput">Target Balance</label>
+                  <input id="targetBalanceInput" type="number" min="0" step="0.01" value="0">
+                </div>
+              </div>
+
+              <div class="actions bulk-actions-row">
+                <button class="ghost-button" id="previewBulkButton" type="button">Preview</button>
+                <button class="danger-button" id="transferAllButton" type="button" disabled>Transfer Out All</button>
+                <button class="ghost-button" id="clearBulkOutButton" type="button">Clear</button>
+              </div>
+
+              <div class="bulk-preview" id="bulkPreview"></div>
+            </section>
+
+            <section class="panel bulk-panel" id="bulkInPanel" hidden>
+              <div class="panel-head">
+                <div>
+                  <h2>
+                    <span></span>
+                    Bulk and Single Transfer In (Target Balance)
+                    <button
+                      class="info-button"
+                      type="button"
+                      aria-label="Bulk transfer in status explanation"
+                      data-tooltip="Ready: account พร้อมยิง Transfer In All เพราะ lookup สำเร็จ เจอ tmAccountId, balance และ amount ที่ต้องเติมเข้ามากกว่า 0&#10;Skip: lookup สำเร็จแต่ไม่ต้องเติมเงิน เพราะ balance มากกว่าหรือเท่ากับ Target Balance&#10;Error: account ยังไม่พร้อม เช่น DDP ไม่สำเร็จ หรือหา tmAccountId, balance ไม่เจอ&#10;Ignored: account ที่ paste มาเกิน limit 20 ระบบใช้เฉพาะ 20 รายการแรก"
+                    >i</button>
+                  </h2>
+                  <p>Paste up to 20 accounts. Extra accounts are ignored after the first 20.</p>
+                </div>
+              </div>
+
+              <label class="field-label" for="bulkInAccountsInput">Accounts</label>
+              <textarea id="bulkInAccountsInput" class="bulk-accounts-input" spellcheck="false" placeholder="1909824734&#10;1909824735&#10;1909824736"></textarea>
+
+              <div class="topup-grid">
+                <div>
+                  <label class="field-label" for="targetInBalanceInput">Target Balance</label>
+                  <input id="targetInBalanceInput" type="number" min="0" step="0.01" value="0">
+                </div>
+              </div>
+
+              <div class="actions bulk-actions-row">
+                <button class="ghost-button" id="previewBulkInButton" type="button">Preview</button>
+                <button id="transferInAllButton" type="button" disabled>Transfer In All</button>
+                <button class="ghost-button" id="clearBulkInButton" type="button">Clear</button>
+              </div>
+
+              <div class="bulk-preview" id="bulkInPreview"></div>
+            </section>
+
+            <section class="panel balance-panel">
+              <div class="panel-head">
+                <div>
+                  <h2><span></span>Balance Check</h2>
+                  <p>Check availableBalance from DDP account-financial. Paste up to 20 accounts.</p>
+                </div>
+              </div>
+
+              <label class="field-label" for="balanceAccountsInput">Accounts</label>
+              <textarea id="balanceAccountsInput" class="bulk-accounts-input" spellcheck="false" placeholder="1909824734&#10;1909824735&#10;1909824736"></textarea>
+
+              <div class="actions bulk-actions-row">
+                <button class="secondary-button compact-button" id="checkBalanceButton" type="button">Check Balance</button>
+                <button class="ghost-button" id="clearBalanceButton" type="button">Clear</button>
+              </div>
+            </section>
+          </div>
+
+          <aside class="panel response-panel">
+            <div class="response-header">
+              <div>
+                <h2><span></span>Response</h2>
+                <p id="responseMeta">No request yet</p>
+              </div>
+              <button class="ghost-button" id="clearButton" type="button">Clear</button>
+            </div>
+            <pre id="responseOutput">{}</pre>
+          </aside>
+        </section>
+      </section>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>

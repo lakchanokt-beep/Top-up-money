@@ -1,0 +1,12 @@
+{
+  "name": "top-up-money-tool",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local SIT/UAT top-up test console",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

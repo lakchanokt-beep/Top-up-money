@@ -32,7 +32,6 @@ npm start
 
 - Keep the app behind VPN/internal network.
 - Enable `BASIC_AUTH_USER` and `BASIC_AUTH_PASSWORD`.
-- Keep `BULK_ACCOUNT_LIMIT=20` unless the service owners approve a higher limit.
 - Review `AUDIT_LOG_PATH` regularly. Money-changing actions are logged as JSON lines.
 - Prefer SIT/UAT-only credentials and network policies.
 

@@ -332,6 +332,17 @@ h2 span {
   margin-bottom: 16px;
 }
 
+.one-step-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.one-step-actions button,
+.one-step-actions .secondary-button {
+  width: auto;
+  min-width: 118px;
+}
+
 .panel-head p {
   margin: 4px 0 0;
   color: var(--ink-faint);
@@ -717,6 +728,10 @@ pre {
   .response-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .one-step-actions {
+    align-items: flex-start;
   }
 
   .control-grid,

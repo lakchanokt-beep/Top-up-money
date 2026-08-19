@@ -103,8 +103,9 @@
                 </div>
               </div>
 
-              <div class="actions">
+              <div class="actions one-step-actions">
                 <button id="submitButton" type="submit">Top-up Now</button>
+                <button class="secondary-button" id="checkOneStepBalanceButton" type="button">Check Balance</button>
                 <button class="ghost-button" id="resetButton" type="button">Reset Form</button>
               </div>
             </form>
@@ -119,10 +120,10 @@
                       class="info-button"
                       type="button"
                       aria-label="Bulk status explanation"
-                      data-tooltip="Ready: account พร้อมยิง Transfer Out All เพราะ lookup สำเร็จ เจอ tmAccountId, pocketNumber, balance และ amount ที่ต้องเอาออกมากกว่า 0&#10;Skip: lookup สำเร็จแต่ไม่ต้องเอาเงินออก เพราะ balance น้อยกว่าหรือเท่ากับ Target Balance&#10;Error: account ยังไม่พร้อม เช่น DDP ไม่สำเร็จ หรือหา tmAccountId, pocketNumber, balance ไม่เจอ&#10;Ignored: account ที่ paste มาเกิน limit 20 ระบบใช้เฉพาะ 20 รายการแรก"
+                      data-tooltip="Ready: account พร้อมยิง Transfer Out All เพราะ lookup สำเร็จ เจอ tmAccountId, pocketNumber, balance และ amount ที่ต้องเอาออกมากกว่า 0&#10;Skip: lookup สำเร็จแต่ไม่ต้องเอาเงินออก เพราะ balance น้อยกว่าหรือเท่ากับ Target Balance&#10;Error: account ยังไม่พร้อม เช่น DDP ไม่สำเร็จ หรือหา tmAccountId, pocketNumber, balance ไม่เจอ&#10;Ignored: account ที่ระบบข้ามไว้จากเงื่อนไขอื่น ถ้ามีจะแสดงรายการให้ copy ได้"
                     >i</button>
                   </h2>
-                  <p>Paste up to 20 accounts. Extra accounts are ignored after the first 20.</p>
+                  <p>Paste accounts one per line. The tool will process every account you provide.</p>
                 </div>
               </div>
 
@@ -155,10 +156,10 @@
                       class="info-button"
                       type="button"
                       aria-label="Bulk transfer in status explanation"
-                      data-tooltip="Ready: account พร้อมยิง Transfer In All เพราะ lookup สำเร็จ เจอ tmAccountId, balance และ amount ที่ต้องเติมเข้ามากกว่า 0&#10;Skip: lookup สำเร็จแต่ไม่ต้องเติมเงิน เพราะ balance มากกว่าหรือเท่ากับ Target Balance&#10;Error: account ยังไม่พร้อม เช่น DDP ไม่สำเร็จ หรือหา tmAccountId, balance ไม่เจอ&#10;Ignored: account ที่ paste มาเกิน limit 20 ระบบใช้เฉพาะ 20 รายการแรก"
+                      data-tooltip="Ready: account พร้อมยิง Transfer In All เพราะ lookup สำเร็จ เจอ tmAccountId, balance และ amount ที่ต้องเติมเข้ามากกว่า 0&#10;Skip: lookup สำเร็จแต่ไม่ต้องเติมเงิน เพราะ balance มากกว่าหรือเท่ากับ Target Balance&#10;Error: account ยังไม่พร้อม เช่น DDP ไม่สำเร็จ หรือหา tmAccountId, balance ไม่เจอ&#10;Ignored: account ที่ระบบข้ามไว้จากเงื่อนไขอื่น ถ้ามีจะแสดงรายการให้ copy ได้"
                     >i</button>
                   </h2>
-                  <p>Paste up to 20 accounts. Extra accounts are ignored after the first 20.</p>
+                  <p>Paste accounts one per line. The tool will process every account you provide.</p>
                 </div>
               </div>
 
@@ -185,7 +186,7 @@
               <div class="panel-head">
                 <div>
                   <h2><span></span>Balance Check</h2>
-                  <p>Check availableBalance from DDP account-financial. Paste up to 20 accounts.</p>
+                  <p>Check availableBalance from DDP account-financial. Paste accounts one per line.</p>
                 </div>
               </div>
 

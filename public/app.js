@@ -47,6 +47,7 @@ const els = {
   transactionCodeInput: document.querySelector("#transactionCodeInput"),
   internalAccountInput: document.querySelector("#internalAccountInput"),
   submitButton: document.querySelector("#submitButton"),
+  checkOneStepBalanceButton: document.querySelector("#checkOneStepBalanceButton"),
   resetButton: document.querySelector("#resetButton"),
   bulkPanel: document.querySelector("#bulkPanel"),
   bulkAccountsInput: document.querySelector("#bulkAccountsInput"),
@@ -87,10 +88,21 @@ function prettyJson(value) {
 }
 
 function parseAccountsText(text) {
-  return String(text || "")
-    .split(/\r?\n|,|\s+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+  return String(text || "").match(/\d+/g) || [];
+}
+
+function normalizeAccountInput(input) {
+  const normalized = parseAccountsText(input.value).join("\n");
+  if (input.value !== normalized) {
+    input.value = normalized;
+  }
+}
+
+function bindAccountNormalizer(input, onChange) {
+  input.addEventListener("input", () => {
+    normalizeAccountInput(input);
+    if (onChange) onChange();
+  });
 }
 
 function escapeHtml(value) {
@@ -257,7 +269,7 @@ function renderBulkPreview(result, options = {}) {
     return;
   }
 
-  const fallbackIgnoredAccounts = parseAccountsText(accountsText).slice(20);
+  const fallbackIgnoredAccounts = [];
   const ignoredAccounts = (result.ignoredAccounts && result.ignoredAccounts.length)
     ? result.ignoredAccounts
     : fallbackIgnoredAccounts;
@@ -399,6 +411,27 @@ async function checkBalance() {
   setStatus(result.ok ? "Balance ready" : "Balance has errors", result.ok ? "ok" : "error");
 }
 
+async function checkOneStepBalance() {
+  setStatus("Checking balance", "pending");
+
+  const account = parseAccountsText(els.entityNumberFrom.value)[0] || "";
+  if (account) {
+    els.entityNumberFrom.value = account;
+  }
+
+  const result = await postJson("/api/balance-check", {
+    env: state.env,
+    accounts: account
+  });
+
+  els.responseMeta.textContent = `One-step balance · success ${result.successCount || 0} · error ${result.errorCount || 0}`;
+  els.responseOutput.textContent = (result.summary || []).join("\n");
+  if (result.errorCount) {
+    els.responseOutput.textContent += `\n\n${prettyJson(result)}`;
+  }
+  setStatus(result.ok ? "Balance ready" : "Balance has errors", result.ok ? "ok" : "error");
+}
+
 els.envSelect.addEventListener("change", () => {
   state.env = els.envSelect.value;
   state.service = "";
@@ -416,6 +449,18 @@ els.transactionCodeInput.addEventListener("input", () => {
   els.transactionCodeInput.dataset.touched = "true";
 });
 
+bindAccountNormalizer(els.bulkAccountsInput, () => {
+  els.bulkPreview.innerHTML = "";
+  els.transferAllButton.disabled = true;
+});
+
+bindAccountNormalizer(els.bulkInAccountsInput, () => {
+  els.bulkInPreview.innerHTML = "";
+  els.transferInAllButton.disabled = true;
+});
+
+bindAccountNormalizer(els.balanceAccountsInput);
+
 els.healthButton.addEventListener("click", () => {
   checkHealth().catch((error) => {
     els.responseMeta.textContent = "Port check failed";
@@ -425,6 +470,14 @@ els.healthButton.addEventListener("click", () => {
 });
 
 els.requestForm.addEventListener("submit", sendRequest);
+
+els.checkOneStepBalanceButton.addEventListener("click", () => {
+  checkOneStepBalance().catch((error) => {
+    els.responseMeta.textContent = "One-step balance failed";
+    els.responseOutput.textContent = prettyJson({ error: error.message });
+    setStatus("Balance failed", "error");
+  });
+});
 
 els.previewBulkButton.addEventListener("click", () => {
   previewBulk().catch((error) => {

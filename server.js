@@ -9,7 +9,6 @@ const AUDIT_LOG_PATH = process.env.AUDIT_LOG_PATH || path.join(__dirname, "logs"
 const DCB_BASE_URL = process.env.DCB_BASE_URL || "http://localhost:8051";
 const DDP_ACCOUNT_FINANCIAL_URL = process.env.DDP_ACCOUNT_FINANCIAL_URL || "http://localhost:8070/payment/v1/internal/deposit-adapter/account-financial";
 const DCB_TRANSFER_PATH = process.env.DCB_TRANSFER_PATH || "/api/v1/transfer";
-const BULK_ACCOUNT_LIMIT = Number(process.env.BULK_ACCOUNT_LIMIT || 20);
 const BASIC_AUTH_USER = process.env.BASIC_AUTH_USER || "";
 const BASIC_AUTH_PASSWORD = process.env.BASIC_AUTH_PASSWORD || "";
 
@@ -384,20 +383,17 @@ async function lookupAccountFinancial(entityNumberFrom, options = {}) {
 }
 
 function parseAccountLines(text) {
-  return String(text || "")
-    .split(/\r?\n|,|\s+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+  return String(text || "").match(/\d+/g) || [];
 }
 
 function parseLimitedAccountLines(text) {
   const accounts = parseAccountLines(text);
   return {
-    accounts: accounts.slice(0, BULK_ACCOUNT_LIMIT),
-    ignoredAccounts: accounts.slice(BULK_ACCOUNT_LIMIT),
+    accounts,
+    ignoredAccounts: [],
     originalCount: accounts.length,
-    ignoredCount: Math.max(0, accounts.length - BULK_ACCOUNT_LIMIT),
-    limit: BULK_ACCOUNT_LIMIT
+    ignoredCount: 0,
+    limit: null
   };
 }
 

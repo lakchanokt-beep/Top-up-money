@@ -3,24 +3,51 @@ const fs = require("fs");
 const net = require("net");
 const path = require("path");
 
+function loadLocalEnv() {
+  const envPath = path.join(__dirname, ".env");
+  if (!fs.existsSync(envPath)) return;
+
+  for (const line of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const separator = trimmed.indexOf("=");
+    if (separator < 1) continue;
+    const key = trimmed.slice(0, separator).trim();
+    const value = trimmed.slice(separator + 1).trim().replace(/^(['"])(.*)\1$/, "$2");
+    if (process.env[key] === undefined) process.env[key] = value;
+  }
+}
+
+loadLocalEnv();
+
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, "public");
 const AUDIT_LOG_PATH = process.env.AUDIT_LOG_PATH || path.join(__dirname, "logs", "audit.jsonl");
-const DCB_BASE_URL = process.env.DCB_BASE_URL || "http://localhost:8051";
-const DDP_ACCOUNT_FINANCIAL_URL = process.env.DDP_ACCOUNT_FINANCIAL_URL || "http://localhost:8070/payment/v1/internal/deposit-adapter/account-financial";
+const DCB_SIT_BASE_URL = process.env.DCB_SIT_BASE_URL || process.env.DCB_BASE_URL || "http://127.0.0.2:8051";
+const DCB_UAT_BASE_URL = process.env.DCB_UAT_BASE_URL || process.env.DCB_BASE_URL || "http://localhost:28051";
+const DDP_SIT_ACCOUNT_FINANCIAL_URL = process.env.DDP_SIT_ACCOUNT_FINANCIAL_URL || process.env.DDP_ACCOUNT_FINANCIAL_URL || "http://127.0.0.2:8070/payment/v1/internal/deposit-adapter/account-financial";
+const DDP_UAT_ACCOUNT_FINANCIAL_URL = process.env.DDP_UAT_ACCOUNT_FINANCIAL_URL || process.env.DDP_ACCOUNT_FINANCIAL_URL || "http://localhost:28070/payment/v1/internal/deposit-adapter/account-financial";
+const CARDLESS_WITHDRAWAL_SIT_BASE_URL = process.env.CARDLESS_WITHDRAWAL_SIT_BASE_URL || "http://127.0.0.2:8081";
+const CARDLESS_WITHDRAWAL_UAT_BASE_URL = process.env.CARDLESS_WITHDRAWAL_UAT_BASE_URL || "http://localhost:28081";
+const CARDLESS_DEPOSIT_SIT_BASE_URL = process.env.CARDLESS_DEPOSIT_SIT_BASE_URL || "http://127.0.0.2:8045";
+const CARDLESS_DEPOSIT_UAT_BASE_URL = process.env.CARDLESS_DEPOSIT_UAT_BASE_URL || "http://localhost:28045";
+const CARDLESS_DEPOSIT_DEVOPS_KEY = process.env.CARDLESS_DEPOSIT_DEVOPS_KEY || "";
 const DCB_TRANSFER_PATH = process.env.DCB_TRANSFER_PATH || "/api/v1/transfer";
 const BASIC_AUTH_USER = process.env.BASIC_AUTH_USER || "";
 const BASIC_AUTH_PASSWORD = process.env.BASIC_AUTH_PASSWORD || "";
 
 const envConfig = {
   sit: {
-    label: "VB SIT",
-    awsProfile: "vb",
-    region: "ap-southeast-1",
-    cluster: "vb-core-bank-sit-eks",
+    label: "CB SIT",
+    awsProfile: "CB",
+    region: "ap-southeast-7",
+    cluster: "cb-core-bank-th-sit-eks-tm",
+    ddpAccountFinancialUrl: DDP_SIT_ACCOUNT_FINANCIAL_URL,
+    cardlessWithdrawalBaseUrl: CARDLESS_WITHDRAWAL_SIT_BASE_URL,
+    cardlessDepositBaseUrl: CARDLESS_DEPOSIT_SIT_BASE_URL,
     services: {
-      dcbInbound: { label: "DCB adapter - Inbound", baseUrl: DCB_BASE_URL, postingType: "INBOUND" },
-      dcbOutbound: { label: "DCB adapter - Outbound", baseUrl: DCB_BASE_URL, postingType: "OUTBOUND" }
+      dcbInbound: { label: "DCB adapter - Inbound", baseUrl: DCB_SIT_BASE_URL, postingType: "INBOUND" },
+      dcbOutbound: { label: "DCB adapter - Outbound", baseUrl: DCB_SIT_BASE_URL, postingType: "OUTBOUND" }
     }
   },
   uat: {
@@ -28,9 +55,12 @@ const envConfig = {
     awsProfile: "CB",
     region: "ap-southeast-7",
     cluster: "cb-core-bank-th-uat-eks-tm",
+    ddpAccountFinancialUrl: DDP_UAT_ACCOUNT_FINANCIAL_URL,
+    cardlessWithdrawalBaseUrl: CARDLESS_WITHDRAWAL_UAT_BASE_URL,
+    cardlessDepositBaseUrl: CARDLESS_DEPOSIT_UAT_BASE_URL,
     services: {
-      dcbInbound: { label: "DCB adapter - Inbound", baseUrl: DCB_BASE_URL, postingType: "INBOUND" },
-      dcbOutbound: { label: "DCB adapter - Outbound", baseUrl: DCB_BASE_URL, postingType: "OUTBOUND" }
+      dcbInbound: { label: "DCB adapter - Inbound", baseUrl: DCB_UAT_BASE_URL, postingType: "INBOUND" },
+      dcbOutbound: { label: "DCB adapter - Outbound", baseUrl: DCB_UAT_BASE_URL, postingType: "OUTBOUND" }
     }
   }
 };
@@ -163,6 +193,18 @@ function getTarget(envKey, serviceKey, requestPath = "/") {
   };
 }
 
+function getDdpAccountFinancialUrl(envKey) {
+  const env = envConfig[envKey];
+  if (!env) throw new Error("Unknown environment");
+  return env.ddpAccountFinancialUrl;
+}
+
+function getCardlessBaseUrl(envKey, flow) {
+  const env = envConfig[envKey];
+  if (!env) throw new Error("Unknown environment");
+  return flow === "withdrawal" ? env.cardlessWithdrawalBaseUrl : env.cardlessDepositBaseUrl;
+}
+
 async function proxyRequest(payload) {
   const { env, service, url } = getTarget(payload.env, payload.service, payload.path || "/");
   const method = String(payload.method || "POST").toUpperCase();
@@ -281,6 +323,39 @@ function bangkokDateParts(date = new Date()) {
   return { requestDateTime, effectiveDate };
 }
 
+function atmDateParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(date).reduce((acc, part) => {
+    acc[part.type] = part.value;
+    return acc;
+  }, {});
+  const milliseconds = String(date.getMilliseconds()).padStart(3, "0");
+
+  return {
+    requestDateTime: `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}.${milliseconds}+07:00`,
+    transmissionDateTime: `${parts.month}${parts.day}${parts.hour}${parts.minute}${parts.second}`,
+    localTransactionDate: `${parts.month}${parts.day}`,
+    localTransactionTime: `${parts.hour}${parts.minute}${parts.second}`,
+    captureDate: `${parts.year}${parts.month}${parts.day}`
+  };
+}
+
+function randomDigits(length) {
+  let result = "";
+  for (let index = 0; index < length; index += 1) {
+    result += Math.floor(Math.random() * 10);
+  }
+  return result;
+}
+
 function findField(value, fieldName) {
   if (!value || typeof value !== "object") return "";
   if (typeof value[fieldName] === "string" && value[fieldName]) return value[fieldName];
@@ -353,6 +428,7 @@ function findBalance(value) {
 }
 
 async function lookupAccountFinancial(entityNumberFrom, options = {}) {
+  const requestUrl = getDdpAccountFinancialUrl(options.envKey);
   const requestDateTime = options.requestDateTime || bangkokDateParts().requestDateTime;
   const channel = options.channel || "VB";
   const lookupHeaders = {
@@ -368,14 +444,14 @@ async function lookupAccountFinancial(entityNumberFrom, options = {}) {
     entityNumberFrom: String(entityNumberFrom).trim(),
     typeFrom: options.typeFrom || "ACCOUNT"
   };
-  const response = await fetchJson(DDP_ACCOUNT_FINANCIAL_URL, {
+  const response = await fetchJson(requestUrl, {
     method: "POST",
     headers: lookupHeaders,
     body: JSON.stringify(lookupBody)
   });
 
   return {
-    requestUrl: DDP_ACCOUNT_FINANCIAL_URL,
+    requestUrl,
     requestHeaders: lookupHeaders,
     requestBody: lookupBody,
     ...response
@@ -420,6 +496,342 @@ async function fetchJson(url, options) {
   };
 }
 
+function cardlessStepResult(name, requestUrl, requestBody, response) {
+  return {
+    name,
+    requestUrl,
+    requestBody,
+    status: response.status,
+    statusText: response.statusText,
+    durationMs: response.durationMs,
+    body: response.json || response.text
+  };
+}
+
+function withdrawalHeaders(mti, referenceCode, requestDateTime) {
+  return {
+    accept: "*/*",
+    "content-type": "application/json",
+    "user-agent": "top-up-money-tool",
+    "x-channel": "ATM",
+    "x-devops-dest": "DEV_TEST",
+    "x-devops-key": "DEV_TEST",
+    "x-devops-src": "DEV_TEST",
+    "x-ref-id": `${mti}-0006FFFFFFF-K30001FFFFFFFFFF-${referenceCode}-165842683689`,
+    "x-request-date-time": requestDateTime,
+    "x-requester": "BASE24",
+    "x-traceparent": traceparent()
+  };
+}
+
+function withdrawalBody({
+  mti,
+  processingCode,
+  transactionAmount,
+  fromAccount = "",
+  mobile,
+  refCode,
+  channelFlag,
+  rrn,
+  currencyCode,
+  accessFee,
+  systemFee,
+  dates
+}) {
+  return {
+    mti,
+    cardRef: "",
+    familyId: "",
+    processingCode,
+    transactionAmount,
+    cardBillingAmount: "0.00",
+    chBillingConvRate: "0.00",
+    transmissionDateTime: dates.transmissionDateTime,
+    localTransactionDate: dates.localTransactionDate,
+    localTransactionTime: dates.localTransactionTime,
+    captureDate: dates.captureDate,
+    merchantCatCode: "5411",
+    accessFee,
+    posEntryMode: "051",
+    inteface: "KTB",
+    acquirerId: "0006",
+    terminalId: "K40203",
+    traceId: "000001",
+    rrn,
+    cardAcceptorIdentificationCode: "0006",
+    location: "000081KRUNG THAI BANK BANGKOK      010TH",
+    currencyCode,
+    fromAccount,
+    toAccount: "",
+    originalDate: "",
+    replacementAmount: "",
+    panMarking: "888888xxxxxx1912",
+    B24fee: accessFee,
+    systemFee,
+    cardlessInfo: {
+      mobile,
+      refCode,
+      channelFlag
+    }
+  };
+}
+
+function extractWithdrawalState(json, fallback = {}) {
+  const data = json && typeof json === "object" ? json.data : null;
+  if (!data || typeof data !== "object") return { ...fallback };
+  const cardlessInfo = data.cardlessInfo && typeof data.cardlessInfo === "object" ? data.cardlessInfo : {};
+
+  return {
+    accountNo: data.accountNo || fallback.accountNo || "",
+    mobile: cardlessInfo.mobile || fallback.mobile || "",
+    refCode: cardlessInfo.refCode || fallback.refCode || "",
+    transactionAmount: data.txnAmount ?? fallback.transactionAmount ?? "",
+    retrievalRefNo: data.retrievalRefNo || fallback.retrievalRefNo || ""
+  };
+}
+
+async function runCardlessWithdrawal(payload) {
+  const env = envConfig[payload.env];
+  if (!env) throw new Error("Unknown environment");
+
+  const amountNumber = Number(payload.transactionAmount);
+  const mobile = String(payload.mobile || "").trim();
+  const refCode = String(payload.refCode || "").trim();
+  if (!Number.isFinite(amountNumber) || amountNumber <= 0) throw new Error("transactionAmount must be greater than 0");
+  if (!/^\d+$/.test(mobile)) throw new Error("mobile must contain numbers only");
+  if (!/^\d+$/.test(refCode)) throw new Error("refCode must contain numbers only");
+
+  const baseUrl = getCardlessBaseUrl(payload.env, "withdrawal");
+  const amount = amountNumber.toFixed(2);
+  const inquiryReference = randomDigits(6);
+  const cashoutReference = randomDigits(6);
+  const cashoutRrn = randomDigits(12);
+  const steps = [];
+
+  const inquiryDates = atmDateParts();
+  const inquiryBody = withdrawalBody({
+    mti: "0200",
+    processingCode: "3V0000",
+    transactionAmount: amount,
+    mobile,
+    refCode,
+    channelFlag: "NC",
+    rrn: "949131502804",
+    currencyCode: "840",
+    accessFee: "0",
+    systemFee: "10",
+    dates: inquiryDates
+  });
+  const inquiryUrl = new URL("/payment/v1/atm/cardless/inquiry", baseUrl).toString();
+  const inquiry = await fetchJson(inquiryUrl, {
+    method: "POST",
+    headers: withdrawalHeaders("0200", inquiryReference, inquiryDates.requestDateTime),
+    body: JSON.stringify(inquiryBody)
+  });
+  steps.push(cardlessStepResult("Inquiry withdrawal info", inquiryUrl, inquiryBody, inquiry));
+  if (!inquiry.ok) {
+    return { ok: false, env: env.label, flow: "Cardless Withdrawal", failedStep: 1, steps };
+  }
+
+  let state = extractWithdrawalState(inquiry.json);
+  const missingInquiryFields = ["accountNo", "mobile", "refCode", "transactionAmount"].filter((field) => state[field] === "" || state[field] === null || state[field] === undefined);
+  if (missingInquiryFields.length) {
+    return {
+      ok: false,
+      env: env.label,
+      flow: "Cardless Withdrawal",
+      failedStep: 1,
+      error: `Missing response fields: ${missingInquiryFields.join(", ")}`,
+      steps
+    };
+  }
+
+  const withdrawalDates = atmDateParts();
+  const withdrawalRequestBody = withdrawalBody({
+    mti: "0200",
+    processingCode: "0V0000",
+    transactionAmount: String(state.transactionAmount),
+    fromAccount: String(state.accountNo),
+    mobile: String(state.mobile),
+    refCode: String(state.refCode),
+    channelFlag: "VV",
+    rrn: cashoutRrn,
+    currencyCode: "764",
+    accessFee: "0.00",
+    systemFee: "0.00",
+    dates: withdrawalDates
+  });
+  const withdrawalUrl = new URL("/payment/v1/atm/cardless/withdrawal", baseUrl).toString();
+  const withdrawal = await fetchJson(withdrawalUrl, {
+    method: "POST",
+    headers: withdrawalHeaders("0200", cashoutReference, withdrawalDates.requestDateTime),
+    body: JSON.stringify(withdrawalRequestBody)
+  });
+  steps.push(cardlessStepResult("Cardless withdrawal", withdrawalUrl, withdrawalRequestBody, withdrawal));
+  if (!withdrawal.ok) {
+    return { ok: false, env: env.label, flow: "Cardless Withdrawal", failedStep: 2, steps };
+  }
+
+  state = extractWithdrawalState(withdrawal.json, state);
+  const confirmDates = atmDateParts();
+  const confirmBody = withdrawalBody({
+    mti: "0220",
+    processingCode: "0V0000",
+    transactionAmount: String(state.transactionAmount),
+    fromAccount: String(state.accountNo),
+    mobile: String(state.mobile),
+    refCode: String(state.refCode),
+    channelFlag: "VV",
+    rrn: cashoutRrn,
+    currencyCode: "764",
+    accessFee: "0.00",
+    systemFee: "0.00",
+    dates: confirmDates
+  });
+  const confirmUrl = new URL("/payment/v1/atm/cardless/confirm", baseUrl).toString();
+  const confirm = await fetchJson(confirmUrl, {
+    method: "POST",
+    headers: withdrawalHeaders("0220", cashoutReference, confirmDates.requestDateTime),
+    body: JSON.stringify(confirmBody)
+  });
+  steps.push(cardlessStepResult("Confirm cashout", confirmUrl, confirmBody, confirm));
+
+  return {
+    ok: confirm.ok,
+    env: env.label,
+    flow: "Cardless Withdrawal",
+    failedStep: confirm.ok ? null : 3,
+    mapped: state,
+    steps
+  };
+}
+
+function depositHeaders(requestDateTime) {
+  return {
+    "content-type": "application/json",
+    "x-ref-id": uuid(),
+    "x-requester": "VB",
+    "x-channel": "BASE24",
+    "x-product": "ESAVINGS",
+    "x-traceparent": traceparent(),
+    "x-request-date-time": requestDateTime,
+    "x-service": "Deposit",
+    "x-devops-src": "vfs",
+    "x-devops-dest": "vb-payment",
+    "x-devops-key": CARDLESS_DEPOSIT_DEVOPS_KEY
+  };
+}
+
+function depositBody({ mti, processingCode, transactionAmount, toAccount, location, dates }) {
+  return {
+    mti,
+    cardRef: "8888880842345678",
+    familyId: "FAM001",
+    processingCode,
+    transactionAmount,
+    cardBillingAmount: 50.00,
+    chBillingConvRate: "1.00",
+    transmissionDateTime: dates.transmissionDateTime,
+    localTransactionDate: dates.localTransactionDate,
+    localTransactionTime: dates.localTransactionTime,
+    captureDate: dates.captureDate,
+    merchantCatCode: "",
+    accessFee: 0.00,
+    posEntryMode: "051",
+    inteface: "KTB",
+    acquirerId: "0006",
+    terminalId: "TERMSIT001",
+    traceId: "000123",
+    rrn: "null",
+    cardAcceptorIdentificationCode: "006",
+    location,
+    currencyCode: "764",
+    toAccount,
+    originalDate: dates.captureDate,
+    replacementAmount: "123456789012000000001500",
+    panMarking: "XXXXXXXXXXXX1234",
+    B24fee: 0.00,
+    cardlessInfo: {
+      mobile: "0619515013",
+      refCode: "123456",
+      channelFlag: "NC"
+    },
+    acqFee: 0,
+    issFee: 0,
+    toFee: 0
+  };
+}
+
+async function runCardlessDeposit(payload) {
+  const env = envConfig[payload.env];
+  if (!env) throw new Error("Unknown environment");
+  if (!CARDLESS_DEPOSIT_DEVOPS_KEY) throw new Error("CARDLESS_DEPOSIT_DEVOPS_KEY is required");
+
+  const transactionAmount = Number(payload.transactionAmount);
+  const toAccount = String(payload.toAccount || "").trim();
+  if (!Number.isFinite(transactionAmount) || transactionAmount <= 0) throw new Error("transactionAmount must be greater than 0");
+  if (!/^\d+$/.test(toAccount)) throw new Error("toAccount must contain numbers only");
+
+  const baseUrl = getCardlessBaseUrl(payload.env, "deposit");
+  const requestUrl = new URL("/payment/v1/atm/card/deposit", baseUrl).toString();
+  const steps = [];
+  const inquiryDates = atmDateParts();
+  const inquiryBody = depositBody({
+    mti: "0200",
+    processingCode: "2I0000",
+    transactionAmount,
+    toAccount,
+    location: "000157KRUNGTHAI BANK CITYXXXXXXXXXX010TH",
+    dates: inquiryDates
+  });
+  const inquiry = await fetchJson(requestUrl, {
+    method: "POST",
+    headers: depositHeaders(inquiryDates.requestDateTime),
+    body: JSON.stringify(inquiryBody)
+  });
+  steps.push(cardlessStepResult("Deposit inquiry", requestUrl, inquiryBody, inquiry));
+  if (!inquiry.ok) {
+    return { ok: false, env: env.label, flow: "Cardless Deposit", failedStep: 1, steps };
+  }
+
+  const mappedAccountNo = inquiry.json?.data?.accountNo;
+  if (!mappedAccountNo) {
+    return {
+      ok: false,
+      env: env.label,
+      flow: "Cardless Deposit",
+      failedStep: 1,
+      error: "Missing response field: accountNo",
+      steps
+    };
+  }
+
+  const depositDates = atmDateParts();
+  const depositRequestBody = depositBody({
+    mti: "0220",
+    processingCode: "2E0000",
+    transactionAmount,
+    toAccount: String(mappedAccountNo),
+    location: "000107KRUNGTHAI BANK CITYXXXXXXXXXX010TH",
+    dates: depositDates
+  });
+  const deposit = await fetchJson(requestUrl, {
+    method: "POST",
+    headers: depositHeaders(depositDates.requestDateTime),
+    body: JSON.stringify(depositRequestBody)
+  });
+  steps.push(cardlessStepResult("Deposit money", requestUrl, depositRequestBody, deposit));
+
+  return {
+    ok: deposit.ok,
+    env: env.label,
+    flow: "Cardless Deposit",
+    failedStep: deposit.ok ? null : 2,
+    mapped: { accountNo: String(mappedAccountNo) },
+    steps
+  };
+}
+
 async function runTopup(payload) {
   const { env, service, url } = getTarget(payload.env, payload.service, DCB_TRANSFER_PATH);
   const servicePostingType = service.postingType || "INBOUND";
@@ -435,6 +847,7 @@ async function runTopup(payload) {
   if (!isOutbound && amount <= 0) throw new Error("amount must be greater than 0 for inbound");
 
   const lookup = await lookupAccountFinancial(payload.entityNumberFrom, {
+    envKey: payload.env,
     requestDateTime,
     channel,
     typeFrom: payload.typeFrom || "ACCOUNT",
@@ -533,7 +946,7 @@ async function runTopup(payload) {
     tmAccountId,
     pocketNumber: pocketNumber || null,
     lookup: {
-      requestUrl: DDP_ACCOUNT_FINANCIAL_URL,
+      requestUrl: lookup.requestUrl,
       requestBody: lookup.requestBody,
       status: lookup.status,
       statusText: lookup.statusText,
@@ -563,7 +976,7 @@ async function previewBulkTransferOut(payload) {
 
   const results = [];
   for (const account of accounts) {
-    const lookup = await lookupAccountFinancial(account, { requestDateTime, channel });
+    const lookup = await lookupAccountFinancial(account, { envKey: payload.env, requestDateTime, channel });
     const tmAccountId = lookup.ok ? findTmAccountId(lookup.json) : "";
     const pocketNumber = lookup.ok ? findPocketNumber(lookup.json) : "";
     const balance = lookup.ok ? findBalance(lookup.json) : null;
@@ -701,7 +1114,7 @@ async function previewBulkTransferIn(payload) {
 
   const results = [];
   for (const account of accounts) {
-    const lookup = await lookupAccountFinancial(account, { requestDateTime, channel });
+    const lookup = await lookupAccountFinancial(account, { envKey: payload.env, requestDateTime, channel });
     const tmAccountId = lookup.ok ? findTmAccountId(lookup.json) : "";
     const balance = lookup.ok ? findBalance(lookup.json) : null;
     const transferAmount = balance === null ? null : Math.max(0, Number((targetBalance - balance).toFixed(2)));
@@ -834,7 +1247,7 @@ async function checkBalances(payload) {
 
   const results = [];
   for (const account of accounts) {
-    const lookup = await lookupAccountFinancial(account, { requestDateTime, channel });
+    const lookup = await lookupAccountFinancial(account, { envKey: payload.env, requestDateTime, channel });
     const availableBalance = lookup.ok ? findFirstNumberField(lookup.json, ["availableBalance"]) : null;
 
     results.push({
@@ -979,6 +1392,22 @@ const server = http.createServer(async (req, res) => {
       const payload = JSON.parse(await readBody(req) || "{}");
       const result = await checkBalances(payload);
       sendJson(res, result.ok ? 200 : 422, result);
+      return;
+    }
+
+    if (route.pathname === "/api/cardless-withdrawal" && req.method === "POST") {
+      const payload = JSON.parse(await readBody(req) || "{}");
+      const result = await runCardlessWithdrawal(payload);
+      writeAuditLog(req, "cardless-withdrawal", payload, result);
+      sendJson(res, result.ok ? 200 : 502, result);
+      return;
+    }
+
+    if (route.pathname === "/api/cardless-deposit" && req.method === "POST") {
+      const payload = JSON.parse(await readBody(req) || "{}");
+      const result = await runCardlessDeposit(payload);
+      writeAuditLog(req, "cardless-deposit", payload, result);
+      sendJson(res, result.ok ? 200 : 502, result);
       return;
     }
 

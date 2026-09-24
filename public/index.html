@@ -22,6 +22,13 @@
           <div class="status-pill" id="connectionStatus">Ready</div>
         </header>
 
+        <nav class="workspace-tabs" aria-label="Transaction tools">
+          <button class="workspace-tab active" type="button" data-workspace="topup">Top-up &amp; Balance</button>
+          <button class="workspace-tab" type="button" data-workspace="withdrawal">Cardless Withdrawal</button>
+          <button class="workspace-tab" type="button" data-workspace="deposit">Cardless Deposit</button>
+        </nav>
+
+        <div id="topupWorkspace">
         <section class="summary-row" aria-label="Environment summary">
           <div class="stat-card">
             <span class="label">Selected Env</span>
@@ -61,7 +68,7 @@
             <div class="panel-head">
               <div>
                 <h2><span></span>Target Service</h2>
-                <p>Both options connect to DCB adapter on local port 8051.</p>
+                <p>DCB adapter uses the local port configured for the selected environment.</p>
               </div>
             </div>
             <label class="field-label" for="serviceSelect">Service</label>
@@ -206,9 +213,109 @@
                 <h2><span></span>Response</h2>
                 <p id="responseMeta">No request yet</p>
               </div>
-              <button class="ghost-button" id="clearButton" type="button">Clear</button>
+              <div class="response-actions">
+                <button class="secondary-button compact-action-button" id="copyButton" type="button">Copy Response</button>
+                <button class="ghost-button" id="clearButton" type="button">Clear</button>
+              </div>
             </div>
             <pre id="responseOutput">{}</pre>
+          </aside>
+        </section>
+        </div>
+
+        <section class="request-layout cardless-workspace" id="withdrawalWorkspace" hidden>
+          <form class="panel cardless-form" id="cardlessWithdrawalForm">
+            <div class="panel-head">
+              <div>
+                <h2><span></span>Cardless Withdrawal</h2>
+                <p>Inquiry, withdrawal and cashout confirmation run in one request.</p>
+              </div>
+              <span class="step-badge">3 Steps</span>
+            </div>
+
+            <label class="field-label" for="withdrawalEnvSelect">Environment</label>
+            <select id="withdrawalEnvSelect"></select>
+            <div class="service-url" id="withdrawalServiceUrl">-</div>
+
+            <div class="cardless-fields three-fields">
+              <div>
+                <label class="field-label" for="withdrawalAmount">Transaction Amount</label>
+                <input id="withdrawalAmount" type="number" min="0.01" step="0.01" placeholder="Input amount" required>
+              </div>
+              <div>
+                <label class="field-label" for="withdrawalMobile">Mobile</label>
+                <input id="withdrawalMobile" inputmode="numeric" placeholder="Input mobile" required>
+              </div>
+              <div>
+                <label class="field-label" for="withdrawalRefCode">Ref Code</label>
+                <input id="withdrawalRefCode" inputmode="numeric" placeholder="Input ref code" required>
+              </div>
+            </div>
+
+            <div class="actions cardless-actions">
+              <button class="danger-button" id="cardlessWithdrawalButton" type="submit">Withdraw Now</button>
+              <button class="ghost-button" id="clearCardlessWithdrawalButton" type="button">Clear</button>
+            </div>
+          </form>
+
+          <aside class="panel response-panel cardless-response-panel">
+            <div class="response-header">
+              <div>
+                <h2><span></span>Response</h2>
+                <p id="withdrawalResponseMeta">No request yet</p>
+              </div>
+              <div class="response-actions">
+                <button class="secondary-button compact-action-button" id="copyWithdrawalResponseButton" type="button">Copy Response</button>
+                <button class="ghost-button" id="clearWithdrawalResponseButton" type="button">Clear</button>
+              </div>
+            </div>
+            <pre id="withdrawalResponseOutput">{}</pre>
+          </aside>
+        </section>
+
+        <section class="request-layout cardless-workspace" id="depositWorkspace" hidden>
+          <form class="panel cardless-form" id="cardlessDepositForm">
+            <div class="panel-head">
+              <div>
+                <h2><span></span>Cardless Deposit</h2>
+                <p>Inquiry and deposit money run in one request.</p>
+              </div>
+              <span class="step-badge">2 Steps</span>
+            </div>
+
+            <label class="field-label" for="depositEnvSelect">Environment</label>
+            <select id="depositEnvSelect"></select>
+            <div class="service-url" id="depositServiceUrl">-</div>
+
+            <div class="cardless-fields">
+              <div>
+                <label class="field-label" for="depositAmount">Transaction Amount</label>
+                <input id="depositAmount" type="number" min="0.01" step="0.01" placeholder="Input amount" required>
+              </div>
+              <div>
+                <label class="field-label" for="depositToAccount">To Account</label>
+                <input id="depositToAccount" inputmode="numeric" placeholder="Input account" required>
+              </div>
+            </div>
+
+            <div class="actions cardless-actions">
+              <button id="cardlessDepositButton" type="submit">Deposit Now</button>
+              <button class="ghost-button" id="clearCardlessDepositButton" type="button">Clear</button>
+            </div>
+          </form>
+
+          <aside class="panel response-panel cardless-response-panel">
+            <div class="response-header">
+              <div>
+                <h2><span></span>Response</h2>
+                <p id="depositResponseMeta">No request yet</p>
+              </div>
+              <div class="response-actions">
+                <button class="secondary-button compact-action-button" id="copyDepositResponseButton" type="button">Copy Response</button>
+                <button class="ghost-button" id="clearDepositResponseButton" type="button">Clear</button>
+              </div>
+            </div>
+            <pre id="depositResponseOutput">{}</pre>
           </aside>
         </section>
       </section>

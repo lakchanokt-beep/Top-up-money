@@ -27,6 +27,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -69,6 +73,43 @@ textarea {
   background: rgba(255, 255, 255, .72);
   box-shadow: var(--shadow);
   backdrop-filter: blur(16px);
+}
+
+.workspace-tabs {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 20px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: var(--shadow);
+}
+
+.workspace-tab {
+  min-height: 42px;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  background: #ffffff;
+  color: var(--ink-soft);
+  box-shadow: none;
+  white-space: nowrap;
+}
+
+.workspace-tab:last-child {
+  border-right: 0;
+}
+
+.workspace-tab:hover {
+  background: var(--brand-tint);
+  color: var(--brand-dark);
+  box-shadow: none;
+}
+
+.workspace-tab.active {
+  background: var(--brand);
+  color: #ffffff;
 }
 
 .brand-block {
@@ -496,6 +537,50 @@ dd {
   margin-bottom: 14px;
 }
 
+.cardless-workspace {
+  margin-top: 0;
+}
+
+.cardless-form {
+  display: block;
+}
+
+.cardless-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.cardless-fields.three-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.cardless-actions {
+  justify-content: flex-start;
+}
+
+.cardless-actions button {
+  width: auto;
+  min-width: 128px;
+}
+
+.step-badge {
+  flex-shrink: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--brand-tint);
+  color: var(--brand-dark);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.cardless-response-panel pre {
+  min-height: 440px;
+}
+
 .bulk-panel {
   margin-top: 0;
 }
@@ -691,6 +776,22 @@ button:disabled:hover {
   margin-bottom: 10px;
 }
 
+.response-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.response-actions button,
+.response-actions .secondary-button {
+  width: auto;
+  min-width: 90px;
+}
+
+.response-actions .compact-action-button {
+  min-width: 132px;
+}
+
 .response-header p {
   margin: 4px 0 0;
   color: var(--ink-faint);
@@ -734,12 +835,44 @@ pre {
     align-items: flex-start;
   }
 
+  .cardless-actions {
+    align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .response-actions {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
   .control-grid,
   .request-layout,
   .env-detail,
   .form-row,
   .topup-grid,
   .summary-row {
+    grid-template-columns: 1fr;
+  }
+
+  .cardless-fields,
+  .cardless-fields.three-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .workspace-tabs {
+    width: 100%;
+  }
+
+  .workspace-tab {
+    flex: 1 0 auto;
+  }
+
+  .cardless-fields,
+  .cardless-fields.three-fields {
     grid-template-columns: 1fr;
   }
 }

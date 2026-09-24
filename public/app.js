@@ -1,12 +1,15 @@
 const fallbackConfig = {
   sit: {
-    label: "VB SIT",
-    awsProfile: "vb",
-    region: "ap-southeast-1",
-    cluster: "vb-core-bank-sit-eks",
+    label: "CB SIT",
+    awsProfile: "CB",
+    region: "ap-southeast-7",
+    cluster: "cb-core-bank-th-sit-eks-tm",
+    ddpAccountFinancialUrl: "http://127.0.0.2:8070/payment/v1/internal/deposit-adapter/account-financial",
+    cardlessWithdrawalBaseUrl: "http://127.0.0.2:8081",
+    cardlessDepositBaseUrl: "http://127.0.0.2:8045",
     services: {
-      dcbInbound: { label: "DCB adapter - Inbound", baseUrl: "http://localhost:8051", postingType: "INBOUND" },
-      dcbOutbound: { label: "DCB adapter - Outbound", baseUrl: "http://localhost:8051", postingType: "OUTBOUND" }
+      dcbInbound: { label: "DCB adapter - Inbound", baseUrl: "http://127.0.0.2:8051", postingType: "INBOUND" },
+      dcbOutbound: { label: "DCB adapter - Outbound", baseUrl: "http://127.0.0.2:8051", postingType: "OUTBOUND" }
     }
   },
   uat: {
@@ -14,9 +17,12 @@ const fallbackConfig = {
     awsProfile: "CB",
     region: "ap-southeast-7",
     cluster: "cb-core-bank-th-uat-eks-tm",
+    ddpAccountFinancialUrl: "http://localhost:28070/payment/v1/internal/deposit-adapter/account-financial",
+    cardlessWithdrawalBaseUrl: "http://localhost:28081",
+    cardlessDepositBaseUrl: "http://localhost:28045",
     services: {
-      dcbInbound: { label: "DCB adapter - Inbound", baseUrl: "http://localhost:8051", postingType: "INBOUND" },
-      dcbOutbound: { label: "DCB adapter - Outbound", baseUrl: "http://localhost:8051", postingType: "OUTBOUND" }
+      dcbInbound: { label: "DCB adapter - Inbound", baseUrl: "http://localhost:28051", postingType: "INBOUND" },
+      dcbOutbound: { label: "DCB adapter - Outbound", baseUrl: "http://localhost:28051", postingType: "OUTBOUND" }
     }
   }
 };
@@ -24,12 +30,17 @@ const fallbackConfig = {
 const state = {
   config: {},
   env: "sit",
-  service: ""
+  service: "",
+  workspace: "topup"
 };
 
 const apiBase = window.location.protocol === "file:" ? "http://localhost:3000" : "";
 
 const els = {
+  workspaceTabs: document.querySelectorAll(".workspace-tab"),
+  topupWorkspace: document.querySelector("#topupWorkspace"),
+  withdrawalWorkspace: document.querySelector("#withdrawalWorkspace"),
+  depositWorkspace: document.querySelector("#depositWorkspace"),
   envSelect: document.querySelector("#envSelect"),
   serviceSelect: document.querySelector("#serviceSelect"),
   awsProfile: document.querySelector("#awsProfile"),
@@ -66,9 +77,33 @@ const els = {
   balanceAccountsInput: document.querySelector("#balanceAccountsInput"),
   checkBalanceButton: document.querySelector("#checkBalanceButton"),
   clearBalanceButton: document.querySelector("#clearBalanceButton"),
+  copyButton: document.querySelector("#copyButton"),
   clearButton: document.querySelector("#clearButton"),
   responseMeta: document.querySelector("#responseMeta"),
-  responseOutput: document.querySelector("#responseOutput")
+  responseOutput: document.querySelector("#responseOutput"),
+  cardlessWithdrawalForm: document.querySelector("#cardlessWithdrawalForm"),
+  withdrawalEnvSelect: document.querySelector("#withdrawalEnvSelect"),
+  withdrawalServiceUrl: document.querySelector("#withdrawalServiceUrl"),
+  withdrawalAmount: document.querySelector("#withdrawalAmount"),
+  withdrawalMobile: document.querySelector("#withdrawalMobile"),
+  withdrawalRefCode: document.querySelector("#withdrawalRefCode"),
+  cardlessWithdrawalButton: document.querySelector("#cardlessWithdrawalButton"),
+  clearCardlessWithdrawalButton: document.querySelector("#clearCardlessWithdrawalButton"),
+  withdrawalResponseMeta: document.querySelector("#withdrawalResponseMeta"),
+  withdrawalResponseOutput: document.querySelector("#withdrawalResponseOutput"),
+  copyWithdrawalResponseButton: document.querySelector("#copyWithdrawalResponseButton"),
+  clearWithdrawalResponseButton: document.querySelector("#clearWithdrawalResponseButton"),
+  cardlessDepositForm: document.querySelector("#cardlessDepositForm"),
+  depositEnvSelect: document.querySelector("#depositEnvSelect"),
+  depositServiceUrl: document.querySelector("#depositServiceUrl"),
+  depositAmount: document.querySelector("#depositAmount"),
+  depositToAccount: document.querySelector("#depositToAccount"),
+  cardlessDepositButton: document.querySelector("#cardlessDepositButton"),
+  clearCardlessDepositButton: document.querySelector("#clearCardlessDepositButton"),
+  depositResponseMeta: document.querySelector("#depositResponseMeta"),
+  depositResponseOutput: document.querySelector("#depositResponseOutput"),
+  copyDepositResponseButton: document.querySelector("#copyDepositResponseButton"),
+  clearDepositResponseButton: document.querySelector("#clearDepositResponseButton")
 };
 
 function setStatus(text, tone = "neutral") {
@@ -85,6 +120,28 @@ function prettyJson(value) {
     }
   }
   return JSON.stringify(value, null, 2);
+}
+
+async function copyResponse(outputElement, button) {
+  const text = outputElement.textContent || "";
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+  } else {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(outputElement);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    document.execCommand("copy");
+    selection.removeAllRanges();
+  }
+
+  const originalText = button.textContent;
+  button.textContent = "Copied";
+  setStatus("Response copied", "ok");
+  window.setTimeout(() => {
+    button.textContent = originalText;
+  }, 1400);
 }
 
 function parseAccountsText(text) {
@@ -105,6 +162,12 @@ function bindAccountNormalizer(input, onChange) {
   });
 }
 
+function bindDigitsOnly(input) {
+  input.addEventListener("input", () => {
+    input.value = input.value.replace(/\D/g, "");
+  });
+}
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -115,10 +178,34 @@ function escapeHtml(value) {
 }
 
 function renderEnvOptions() {
-  els.envSelect.innerHTML = Object.entries(state.config)
+  const options = Object.entries(state.config)
     .map(([key, env]) => `<option value="${key}">${env.label}</option>`)
     .join("");
+  els.envSelect.innerHTML = options;
+  els.withdrawalEnvSelect.innerHTML = options;
+  els.depositEnvSelect.innerHTML = options;
   els.envSelect.value = state.env;
+  els.withdrawalEnvSelect.value = state.env;
+  els.depositEnvSelect.value = state.env;
+}
+
+function renderCardlessDetails() {
+  const env = state.config[state.env];
+  els.withdrawalServiceUrl.textContent = `${env.cardlessWithdrawalBaseUrl}/payment/v1/atm/cardless/...`;
+  els.depositServiceUrl.textContent = `${env.cardlessDepositBaseUrl}/payment/v1/atm/card/deposit`;
+}
+
+function selectWorkspace(workspace) {
+  state.workspace = workspace;
+  els.topupWorkspace.hidden = workspace !== "topup";
+  els.withdrawalWorkspace.hidden = workspace !== "withdrawal";
+  els.depositWorkspace.hidden = workspace !== "deposit";
+  els.workspaceTabs.forEach((tab) => {
+    const active = tab.dataset.workspace === workspace;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-selected", String(active));
+  });
+  setStatus("Ready");
 }
 
 function renderServiceOptions() {
@@ -171,6 +258,8 @@ function renderAll() {
   renderEnvOptions();
   renderServiceOptions();
   renderDetails();
+  renderCardlessDetails();
+  selectWorkspace(state.workspace);
   setStatus("Ready");
 }
 
@@ -432,11 +521,80 @@ async function checkOneStepBalance() {
   setStatus(result.ok ? "Balance ready" : "Balance has errors", result.ok ? "ok" : "error");
 }
 
-els.envSelect.addEventListener("change", () => {
-  state.env = els.envSelect.value;
+function updateEnvironment(envKey) {
+  state.env = envKey;
   state.service = "";
+  renderEnvOptions();
   renderServiceOptions();
   renderDetails();
+  renderCardlessDetails();
+}
+
+function renderCardlessResult(result, metaElement, outputElement) {
+  const completedSteps = Array.isArray(result.steps) ? result.steps.length : 0;
+  metaElement.textContent = result.ok
+    ? `Completed · ${completedSteps} steps`
+    : `Failed${result.failedStep ? ` at step ${result.failedStep}` : ""} · ${completedSteps} steps completed`;
+  outputElement.textContent = prettyJson(result);
+  setStatus(result.ok ? "Done" : "Failed", result.ok ? "ok" : "error");
+}
+
+async function submitCardlessWithdrawal(event) {
+  event.preventDefault();
+  setStatus("Withdrawing", "pending");
+  els.cardlessWithdrawalButton.disabled = true;
+  els.withdrawalResponseMeta.textContent = "Running 3-step withdrawal";
+  els.withdrawalResponseOutput.textContent = "{}";
+
+  try {
+    const result = await postJson("/api/cardless-withdrawal", {
+      env: state.env,
+      transactionAmount: Number(els.withdrawalAmount.value),
+      mobile: els.withdrawalMobile.value,
+      refCode: els.withdrawalRefCode.value
+    });
+    renderCardlessResult(result, els.withdrawalResponseMeta, els.withdrawalResponseOutput);
+  } catch (error) {
+    els.withdrawalResponseMeta.textContent = "Cardless withdrawal failed";
+    els.withdrawalResponseOutput.textContent = prettyJson({ error: error.message });
+    setStatus("Failed", "error");
+  } finally {
+    els.cardlessWithdrawalButton.disabled = false;
+  }
+}
+
+async function submitCardlessDeposit(event) {
+  event.preventDefault();
+  setStatus("Depositing", "pending");
+  els.cardlessDepositButton.disabled = true;
+  els.depositResponseMeta.textContent = "Running 2-step deposit";
+  els.depositResponseOutput.textContent = "{}";
+
+  try {
+    const result = await postJson("/api/cardless-deposit", {
+      env: state.env,
+      transactionAmount: Number(els.depositAmount.value),
+      toAccount: els.depositToAccount.value
+    });
+    renderCardlessResult(result, els.depositResponseMeta, els.depositResponseOutput);
+  } catch (error) {
+    els.depositResponseMeta.textContent = "Cardless deposit failed";
+    els.depositResponseOutput.textContent = prettyJson({ error: error.message });
+    setStatus("Failed", "error");
+  } finally {
+    els.cardlessDepositButton.disabled = false;
+  }
+}
+
+els.envSelect.addEventListener("change", () => {
+  updateEnvironment(els.envSelect.value);
+});
+
+els.withdrawalEnvSelect.addEventListener("change", () => updateEnvironment(els.withdrawalEnvSelect.value));
+els.depositEnvSelect.addEventListener("change", () => updateEnvironment(els.depositEnvSelect.value));
+
+els.workspaceTabs.forEach((tab) => {
+  tab.addEventListener("click", () => selectWorkspace(tab.dataset.workspace));
 });
 
 els.serviceSelect.addEventListener("change", () => {
@@ -460,6 +618,9 @@ bindAccountNormalizer(els.bulkInAccountsInput, () => {
 });
 
 bindAccountNormalizer(els.balanceAccountsInput);
+bindDigitsOnly(els.withdrawalMobile);
+bindDigitsOnly(els.withdrawalRefCode);
+bindDigitsOnly(els.depositToAccount);
 
 els.healthButton.addEventListener("click", () => {
   checkHealth().catch((error) => {
@@ -470,6 +631,8 @@ els.healthButton.addEventListener("click", () => {
 });
 
 els.requestForm.addEventListener("submit", sendRequest);
+els.cardlessWithdrawalForm.addEventListener("submit", submitCardlessWithdrawal);
+els.cardlessDepositForm.addEventListener("submit", submitCardlessDeposit);
 
 els.checkOneStepBalanceButton.addEventListener("click", () => {
   checkOneStepBalance().catch((error) => {
@@ -550,6 +713,49 @@ els.clearButton.addEventListener("click", () => {
   els.responseMeta.textContent = "No request yet";
   els.responseOutput.textContent = "{}";
   setStatus("Ready");
+});
+
+els.copyButton.addEventListener("click", () => {
+  copyResponse(els.responseOutput, els.copyButton).catch((error) => {
+    setStatus(`Copy failed: ${error.message}`, "error");
+  });
+});
+
+els.clearCardlessWithdrawalButton.addEventListener("click", () => {
+  els.withdrawalAmount.value = "";
+  els.withdrawalMobile.value = "";
+  els.withdrawalRefCode.value = "";
+  setStatus("Ready");
+});
+
+els.clearWithdrawalResponseButton.addEventListener("click", () => {
+  els.withdrawalResponseMeta.textContent = "No request yet";
+  els.withdrawalResponseOutput.textContent = "{}";
+  setStatus("Ready");
+});
+
+els.copyWithdrawalResponseButton.addEventListener("click", () => {
+  copyResponse(els.withdrawalResponseOutput, els.copyWithdrawalResponseButton).catch((error) => {
+    setStatus(`Copy failed: ${error.message}`, "error");
+  });
+});
+
+els.clearCardlessDepositButton.addEventListener("click", () => {
+  els.depositAmount.value = "";
+  els.depositToAccount.value = "";
+  setStatus("Ready");
+});
+
+els.clearDepositResponseButton.addEventListener("click", () => {
+  els.depositResponseMeta.textContent = "No request yet";
+  els.depositResponseOutput.textContent = "{}";
+  setStatus("Ready");
+});
+
+els.copyDepositResponseButton.addEventListener("click", () => {
+  copyResponse(els.depositResponseOutput, els.copyDepositResponseButton).catch((error) => {
+    setStatus(`Copy failed: ${error.message}`, "error");
+  });
 });
 
 loadConfig().catch((error) => {
